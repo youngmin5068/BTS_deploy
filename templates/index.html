@@ -16,8 +16,17 @@
         </form>
         {% if prediction %}
         <div class="result">
-            <h2>예측 결과: {{ prediction }}</h2>
-            <a href="{{ png_file }}" download="result.png">결과 이미지 다운로드</a>
+            <h2>예측 결과: <span class="prediction-value">{{ prediction }}</span></h2>
+            <div class="image-container">
+                <div>
+                    <h3>입력 이미지:</h3>
+                    <img src="data:image/png;base64,{{ input_image }}" alt="Input Image">
+                </div>
+                <div>
+                    <h3>결과 이미지:</h3>
+                    <img src="data:image/png;base64,{{ result_image }}" alt="Result Image">
+                </div>
+            </div>
         </div>
         {% endif %}
     </div>
