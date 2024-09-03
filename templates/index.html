@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DICOM 파일 업로드</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>DICOM 파일 업로드 및 예측 결과 확인</h1>
+        <form action="/process/" enctype="multipart/form-data" method="post">
+            <label for="file">DICOM 파일 선택:</label>
+            <input type="file" name="file" accept=".dcm" required>
+            <input type="submit" value="업로드 및 예측">
+        </form>
+        {% if prediction %}
+        <div class="result">
+            <h2>예측 결과: {{ prediction }}</h2>
+            <a href="{{ png_file }}" download="result.png">결과 이미지 다운로드</a>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
