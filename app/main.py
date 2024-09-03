@@ -1,14 +1,16 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile, Request
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from PIL import Image
 import torch
 import os
 import cv2
-from .model import load_model
+from io import BytesIO
+import base64
 import numpy as np
+from .model import load_model
 from .data_utils import load_dicom_image, save_png
 
 app = FastAPI(title="딥러닝 모델 API")
@@ -24,6 +26,13 @@ model = load_model("/Users/kimyoungmin/my_fastapi_app/models/Breast_MTL.pth")
 async def main(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+def image_to_base64(image: Image.Image) -> str:
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    img_str = base64.b64encode(buffer.read()).decode("utf-8")
+    return img_str
+
 @app.post("/process/")
 async def process_dicom(request: Request, file: UploadFile = File(...)):
     try:
@@ -34,6 +43,10 @@ async def process_dicom(request: Request, file: UploadFile = File(...)):
 
         # DICOM 이미지 로드 및 전처리
         image_array = load_dicom_image(dicom_file_path)
+
+        # 입력 이미지 준비
+        input_image = Image.fromarray((image_array.squeeze() * 255).astype(np.uint8))
+        input_image_base64 = image_to_base64(input_image)
 
         dcm_forOverlay = (image_array.squeeze() * 255.0).astype(np.uint8)
         dcm_forOverlay = np.expand_dims(dcm_forOverlay, axis=2)
@@ -57,25 +70,19 @@ async def process_dicom(request: Request, file: UploadFile = File(...)):
         alpha = 0.7  # 원본 이미지와 overlay 이미지의 가중치 조절
         overlay_result = cv2.addWeighted(dcm_forOverlay, alpha, output_img, 1 - alpha, 0)
 
-        # 결과 PNG 파일 저장
-        png_file_path = f"/Users/kimyoungmin/my_fastapi_app/output_data/{os.path.splitext(file.filename)[0]}.png"
-        save_png(overlay_result, png_file_path)
+        # 결과 이미지를 PIL 이미지로 변환
+        result_image = Image.fromarray(overlay_result)
+        result_image_base64 = image_to_base64(result_image)
 
         prediction = f"{prediction:.4f}"
 
-        # 예측 결과와 PNG 파일 경로를 HTML 페이지로 반환
+        # 입력 이미지와 결과 이미지를 HTML 페이지에 표시
         return templates.TemplateResponse("index.html", {
             "request": request,
             "prediction": prediction,
-            "png_file": f"/download_png/?file_path={png_file_path}"
+            "input_image": input_image_base64,
+            "result_image": result_image_base64
         })
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/download_png/")
-async def download_png(file_path: str):
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="image/png", filename=os.path.basename(file_path))
-    else:
-        raise HTTPException(status_code=404, detail="File not found")
